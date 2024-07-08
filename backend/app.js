@@ -10,6 +10,9 @@ const authRoutes = require('./routes/auth');
 
 const app = express();
 
+const http = require('http');
+const server = http.createServer(app);
+
 const fileStorage = multer.diskStorage({
   destination: (req, file, cb) => {
     cb(null, 'images');
@@ -60,5 +63,11 @@ app.use((error, req, res, next) => {
 });
 
 mongooseConnect(() => {
-  app.listen(8080);
+  const io = require('./socket').init(server);
+
+  io.on('connection', (socket) => {
+    console.log('Client Connected');
+  });
+
+  server.listen(8080);
 });
