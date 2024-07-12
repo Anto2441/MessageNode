@@ -4,9 +4,12 @@ const express = require('express');
 const bodyParser = require('body-parser');
 const mongooseConnect = require('./util/database').mongooseConnect;
 const multer = require('multer');
+const { graphqlHTTP } = require('express-graphql');
 
-const feedRoutes = require('./routes/feed');
-const authRoutes = require('./routes/auth');
+const graphqlSchema = require('./graphql/schema');
+const graphqlResolver = require('./graphql/resolvers');
+const auth = require('./middleware/auth');
+const { clearImage } = require('./util/file');
 
 const app = express();
 
@@ -48,11 +51,47 @@ app.use((req, res, next) => {
     'OPTIONS, GET, POST, PUT, PATCH, DELETE'
   );
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  if (req.method === 'OPTIONS') {
+    return res.sendStatus(200);
+  }
   next();
 });
 
-app.use('/feed', feedRoutes);
-app.use('/auth', authRoutes);
+app.use(auth);
+
+app.put('/post-image', auth, (req, res, next) => {
+  if (!req.isAuth) {
+    const error = new Error('Not authenticated!');
+    error.statusCode = 401;
+    throw error;
+  }
+  if (!req.file) {
+    return res.status(200).json({ message: 'No file provided!' });
+  }
+  if (req.body.oldPath) {
+    clearImage(req.body.oldPath);
+  }
+  const imageUrl = req.file.path.replace('\\', '/');
+  return res.status(201).json({ message: 'File stored.', filePath: imageUrl });
+});
+
+app.use(
+  '/graphql',
+  graphqlHTTP({
+    schema: graphqlSchema,
+    rootValue: graphqlResolver,
+    graphiql: true,
+    formatError(err) {
+      if (!err.originalError) {
+        return err;
+      }
+      const data = err.originalError.data;
+      const message = err.message || 'An error occurred!';
+      const code = err.originalError.code || 500;
+      return { message: message, status: code, data: data };
+    },
+  })
+);
 
 app.use((error, req, res, next) => {
   console.log(error);
@@ -63,11 +102,5 @@ app.use((error, req, res, next) => {
 });
 
 mongooseConnect(() => {
-  const io = require('./socket').init(server);
-
-  io.on('connection', (socket) => {
-    console.log('Client Connected');
-  });
-
   server.listen(8080);
 });
