@@ -23,6 +23,7 @@ A Node.js message application demonstrating practical implementation of RESTful 
 - GraphQL implementation.
 - Authentication strategies like JWT tokens.
 - Integration with MongoDB and NoSQL databases.
+- Testing with Mocha, Chai, and Sinon.
 
 ## Educational Focus
 
